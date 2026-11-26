@@ -1,0 +1,9 @@
+project: hybrid-book-recommendation
+random_seed: 42
+training:
+  similarity_neighbors: 100
+  content_weight: 0.35
+  collaborative_weight: 0.45
+  popularity_weight: 0.20
+quality_gates:
+  min_recall_at_10: 0.0
