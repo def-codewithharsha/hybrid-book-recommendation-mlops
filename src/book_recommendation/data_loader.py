@@ -7,11 +7,13 @@ all the recommender currently needs, and location/age are not required features.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class DataQualityReport:
@@ -44,22 +46,27 @@ class BookCrossingData:
     report: DataQualityReport
 
 
-def _read_csv(path: Path, required: set[str], *, usecols: list[str] | None = None) -> pd.DataFrame:
+def _read_csv(
+    path: Path,
+    required: set[str],
+    *,
+    usecols: list[str] | None = None,
+    encoding: str,
+) -> pd.DataFrame:
     if not path.is_file():
         raise FileNotFoundError(f"Required dataset file not found: {path}")
     try:
-        columns = pd.read_csv(path, encoding="latin-1", nrows=0).columns
+        columns = pd.read_csv(path, encoding=encoding, nrows=0).columns
         missing = required - set(columns)
         if missing:
             raise ValueError(f"{path} is missing required columns: {sorted(missing)}")
         frame = pd.read_csv(
             path,
-            encoding="latin-1",
+            encoding=encoding,
             dtype="string",
             usecols=usecols,
-            low_memory=False,
         )
-    except (UnicodeDecodeError, pd.errors.ParserError) as exc:
+    except (UnicodeDecodeError, pd.errors.ParserError, OSError) as exc:
         raise ValueError(f"Could not parse dataset file {path}: {exc}") from exc
     return frame
 
@@ -69,11 +76,15 @@ def _normalize_identifier(values: pd.Series) -> pd.Series:
 
 
 def load_book_crossing_data(
-    data_dir: str | Path = "data/raw",
+    data_dir: str | Path | None = None,
     *,
+    users_path: str | Path | None = None,
+    books_path: str | Path | None = None,
+    ratings_path: str | Path | None = None,
     users_file: str = "Users.csv",
     books_file: str = "Books.csv",
     ratings_file: str = "Ratings.csv",
+    encoding: str = "latin-1",
 ) -> BookCrossingData:
     """Load the Book-Crossing files into canonical user, book, and rating tables.
 
@@ -88,17 +99,44 @@ def load_book_crossing_data(
     ``is_explicit=False``. Ratings 1 through 10 are explicit ratings. No event
     timestamp exists in the source data.
     """
-    root = Path(data_dir)
-    user_source = _read_csv(root / users_file, {"User-ID"}, usecols=["User-ID"])
+    explicit_paths = (users_path, books_path, ratings_path)
+    if any(path is not None for path in explicit_paths):
+        if not all(path is not None for path in explicit_paths):
+            raise ValueError("users_path, books_path, and ratings_path must be provided together")
+        if data_dir is not None:
+            raise ValueError("provide either data_dir or all three explicit paths, not both")
+        input_users, input_books, input_ratings = map(Path, explicit_paths)
+    elif data_dir is None:
+        from book_recommendation.config import get_settings
+
+        settings = get_settings()
+        input_users, input_books, input_ratings = (
+            settings.users_path,
+            settings.books_path,
+            settings.ratings_path,
+        )
+    else:
+        root = Path(data_dir)
+        input_users, input_books, input_ratings = (
+            root / users_file,
+            root / books_file,
+            root / ratings_file,
+        )
+
+    user_source = _read_csv(
+        input_users, {"User-ID"}, usecols=["User-ID"], encoding=encoding
+    )
     book_source = _read_csv(
-        root / books_file,
+        input_books,
         {"ISBN", "Book-Title", "Book-Author", "Publisher", "Year-Of-Publication"},
         usecols=["ISBN", "Book-Title", "Book-Author", "Publisher", "Year-Of-Publication"],
+        encoding=encoding,
     )
     rating_source = _read_csv(
-        root / ratings_file,
+        input_ratings,
         {"User-ID", "ISBN", "Book-Rating"},
         usecols=["User-ID", "ISBN", "Book-Rating"],
+        encoding=encoding,
     )
 
     user_source_rows, book_source_rows, rating_source_rows = (
@@ -123,7 +161,10 @@ def load_book_crossing_data(
             ).astype("Int64"),
         }
     )
-    books["title"] = books["title"].replace("", pd.NA)
+    for column in ("title", "authors", "publisher"):
+        books[column] = books[column].str.strip().replace("", pd.NA)
+    plausible_year = books["publication_year"].between(1450, 2100, inclusive="both")
+    books.loc[~plausible_year.fillna(False), "publication_year"] = pd.NA
     books = books.dropna(subset=["book_id", "title"])
     books_missing_id_or_title_removed = book_source_rows - len(books)
     books_before_deduplication = len(books)
@@ -141,9 +182,12 @@ def load_book_crossing_data(
     valid_keys = ratings["user_id"].notna() & ratings["book_id"].notna()
     ratings_missing_key_removed = int((~valid_keys).sum())
     ratings = ratings[valid_keys]
-    valid_rating = ratings["rating"].between(0, 10, inclusive="both")
+    valid_rating = (
+        ratings["rating"].between(0, 10, inclusive="both")
+        & ratings["rating"].mod(1).eq(0)
+    )
     invalid_ratings_removed = int((~valid_rating.fillna(False)).sum())
-    ratings = ratings[valid_rating.fillna(False)].dropna(subset=["user_id", "book_id"])
+    ratings = ratings[valid_rating.fillna(False)].copy()
     before_deduplication = len(ratings)
     ratings = ratings.drop_duplicates(["user_id", "book_id"], keep="last")
     duplicate_user_book_ratings_removed = before_deduplication - len(ratings)
@@ -159,6 +203,13 @@ def load_book_crossing_data(
     ratings["rating"] = ratings["rating"].astype("int8")
     ratings["is_explicit"] = ratings["rating"].gt(0)
     ratings = ratings.reset_index(drop=True)
+
+    if users.empty:
+        raise ValueError("No valid users remain after loading and validation")
+    if books.empty:
+        raise ValueError("No valid books remain after loading and validation")
+    if ratings.empty:
+        raise ValueError("No valid ratings remain after loading and referential checks")
 
     report = DataQualityReport(
         users_source_rows=user_source_rows,
@@ -179,6 +230,15 @@ def load_book_crossing_data(
         books_loaded=len(books),
         ratings_loaded=len(ratings),
     )
+    removed_rows = {
+        name: count
+        for name, count in asdict(report).items()
+        if name.endswith("_removed") and count
+    }
+    if removed_rows:
+        logger.warning("Invalid or unmatched source rows were removed: %s", removed_rows)
+    else:
+        logger.info("All source rows passed identifier, rating, and referential checks")
     return BookCrossingData(users=users, books=books, ratings=ratings, report=report)
 
 
