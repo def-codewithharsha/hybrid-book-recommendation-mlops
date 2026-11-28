@@ -9,7 +9,9 @@ paths:
   ratings: data/raw/Ratings.csv
 
 training:
-  similarity_neighbors: 100
+  latent_factors: 64
+  max_content_features: 100000
+  popularity_prior_strength: 5.0
   content_weight: 0.35
   collaborative_weight: 0.45
   popularity_weight: 0.20

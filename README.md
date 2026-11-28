@@ -1,6 +1,6 @@
 # Hybrid book recommendation
 
-A Python 3.11 service scaffold for a hybrid book recommender. It combines user-item collaborative signals, TF-IDF book metadata similarity, and smoothed popularity ranking. The first version uses a compact in-memory sparse artifact suited to a single API replica; a catalog-scale deployment should move neighbor retrieval and model storage to a dedicated online store.
+A Python 3.11 service scaffold for a hybrid book recommender. It combines explicit-rating collaborative factors from truncated SVD, on-demand TF-IDF metadata similarity, and smoothed popularity ranking. Book-Crossing zero ratings remain a separate implicit signal and are not yet used by the fitted model. Serving keeps sparse content features and low-rank factors rather than materializing a full book-by-book similarity matrix.
 
 ## Data contract
 

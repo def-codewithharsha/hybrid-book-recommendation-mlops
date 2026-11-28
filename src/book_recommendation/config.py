@@ -43,7 +43,9 @@ class PathsConfig(_ConfigModel):
 
 
 class TrainingConfig(_ConfigModel):
-    similarity_neighbors: int = Field(ge=1)
+    latent_factors: int = Field(ge=1)
+    max_content_features: int = Field(ge=1)
+    popularity_prior_strength: float = Field(gt=0)
     content_weight: float = Field(ge=0, le=1)
     collaborative_weight: float = Field(ge=0, le=1)
     popularity_weight: float = Field(ge=0, le=1)
@@ -148,10 +150,6 @@ class Settings(BaseSettings):
     def interactions_path(self) -> Path:
         """Compatibility alias while the training entry point is being migrated."""
         return self.ratings_path
-
-    @property
-    def similarity_neighbors(self) -> int:
-        return self.training.similarity_neighbors
 
     @property
     def recommendation_limit(self) -> int:

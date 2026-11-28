@@ -101,10 +101,14 @@ def run_training(*, dry_run: bool = False, track_mlflow: bool = True) -> None:
     model = train_recommender(
         dataset.books,
         split.train,
-        similarity_neighbors=settings.training.similarity_neighbors,
+        latent_factors=settings.training.latent_factors,
+        max_content_features=settings.training.max_content_features,
+        popularity_prior_strength=settings.training.popularity_prior_strength,
+        content_profile_min_rating=settings.evaluation.relevance_threshold,
         content_weight=settings.training.content_weight,
         collaborative_weight=settings.training.collaborative_weight,
         popularity_weight=settings.training.popularity_weight,
+        random_seed=settings.random_seed,
     )
 
     validation_metrics: dict[str, float] = {}
@@ -156,8 +160,11 @@ def run_training(*, dry_run: bool = False, track_mlflow: bool = True) -> None:
         _log_mlflow(
             model_path=settings.model_path,
             params={
+                "artifact_version": model.artifact_version,
                 "random_seed": settings.random_seed,
-                "similarity_neighbors": settings.training.similarity_neighbors,
+                "latent_factors": settings.training.latent_factors,
+                "max_content_features": settings.training.max_content_features,
+                "popularity_prior_strength": settings.training.popularity_prior_strength,
                 "content_weight": settings.training.content_weight,
                 "collaborative_weight": settings.training.collaborative_weight,
                 "popularity_weight": settings.training.popularity_weight,
