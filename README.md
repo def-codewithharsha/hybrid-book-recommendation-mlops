@@ -26,7 +26,7 @@ uvicorn book_recommendation.api:app --reload --app-dir src
 
 The reproducible Book-Crossing EDA is in `notebooks/01_book_crossing_eda.ipynb`. Run it from the repository root after installing the project dependencies. It profiles data quality, implicit versus explicit ratings, user/book activity, catalog completeness, and interaction sparsity. The older `dump/expriments.ipynb` is an exploratory scratch notebook for Project Gutenberg metadata, not the EDA for the selected Book-Crossing dataset.
 
-Set `BOOK_REC_MODEL_PATH` if the model should be stored elsewhere. Training logs a run and artifact to MLflow when tracking is available; configure `MLFLOW_TRACKING_URI` to use a remote tracking server. For local experiments MLflow uses its default local store.
+Settings load from `config/dev.yaml`; process environment variables override YAML values. Set `BOOK_REC_CONFIG` to select another YAML file, or use nested variables such as `BOOK_REC_PATHS__MODEL` and `BOOK_REC_LOGGING__LEVEL`. Training logs a run and artifact to MLflow when the tracking extra is installed; configure `MLFLOW_TRACKING_URI` to use a remote tracking server. Install tracking support with `pip install -e ".[tracking]"`.
 
 ## API
 

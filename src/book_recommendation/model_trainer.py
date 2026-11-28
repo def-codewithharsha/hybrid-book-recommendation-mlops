@@ -19,9 +19,9 @@ class HybridRecommender:
     user_ids: list[str]
     item_ids: list[str]
     popularity: np.ndarray
-    content_weight: float = 0.35
-    collaborative_weight: float = 0.45
-    popularity_weight: float = 0.20
+    content_weight: float
+    collaborative_weight: float
+    popularity_weight: float
 
     def recommend(self, user_id: str | None = None, book_id: str | None = None,
                   limit: int = 10) -> list[dict[str, Any]]:
@@ -47,8 +47,17 @@ class HybridRecommender:
         return result.to_dict(orient="records")
 
 
-def train_recommender(books: pd.DataFrame, interactions: pd.DataFrame,
-                      similarity_neighbors: int = 100) -> HybridRecommender:
+def train_recommender(
+    books: pd.DataFrame,
+    interactions: pd.DataFrame,
+    *,
+    similarity_neighbors: int,
+    content_weight: float,
+    collaborative_weight: float,
+    popularity_weight: float,
+) -> HybridRecommender:
+    if not np.isclose(content_weight + collaborative_weight + popularity_weight, 1.0):
+        raise ValueError("content, collaborative, and popularity weights must sum to 1")
     if missing := {"book_id", "title"} - set(books.columns):
         raise ValueError(f"books is missing required columns: {sorted(missing)}")
     if missing := {"user_id", "book_id", "rating"} - set(interactions.columns):
@@ -106,5 +115,14 @@ def train_recommender(books: pd.DataFrame, interactions: pd.DataFrame,
                 mask[keep] = True
                 item_cf.data[start:end][~mask] = 0
         item_cf.eliminate_zeros()
-    return HybridRecommender(books, (0.5 * content + 0.5 * item_cf).tocsr(),
-                             user_item, user_ids, item_ids, popularity)
+    return HybridRecommender(
+        books=books,
+        item_similarity=(0.5 * content + 0.5 * item_cf).tocsr(),
+        user_item=user_item,
+        user_ids=user_ids,
+        item_ids=item_ids,
+        popularity=popularity,
+        content_weight=content_weight,
+        collaborative_weight=collaborative_weight,
+        popularity_weight=popularity_weight,
+    )

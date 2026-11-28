@@ -5,23 +5,53 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hybrid-book-recommendation"
 version = "0.1.0"
-description = "Production-oriented hybrid book recommendation API and training pipeline"
+description = "A hybrid book recommendation service and model training pipeline"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
-dynamic = ["dependencies"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "pydantic-settings>=2.5,<3",
+    "pandas>=2.2,<3",
+    "numpy>=2.0,<3",
+    "scikit-learn>=1.5,<2",
+    "scipy>=1.13,<2",
+    "joblib>=1.4,<2",
+    "PyYAML>=6,<7",
+]
 
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.27,<1",
+    "matplotlib>=3.9,<4",
+    "pytest>=8,<9",
+    "pytest-cov>=5,<7",
+    "ruff>=0.6,<1",
+]
+tracking = ["mlflow>=2.17,<4"]
+
+[project.scripts]
+book-rec-train = "book_recommendation.train:main"
+
+[tool.setuptools]
+zip-safe = false
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["book_recommendation*"]
 
-[project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+pythonpath = ["src"]
+
+[tool.coverage.run]
+branch = true
+source = ["book_recommendation"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B"]

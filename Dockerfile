@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BOOK_REC_MODEL_PATH=/app/models/book_recommender.joblib
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BOOK_REC_ENVIRONMENT=production BOOK_REC_PATHS__MODEL=/app/models/book_recommender.joblib
 WORKDIR /app
 COPY pyproject.toml requirements.txt README.md ./
+COPY config ./config
 COPY src ./src
 RUN pip install --no-cache-dir .
 RUN useradd --create-home --uid 10001 appuser && mkdir -p /app/models && chown -R appuser:appuser /app

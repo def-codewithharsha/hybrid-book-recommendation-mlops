@@ -13,7 +13,14 @@ def main() -> None:
     settings = get_settings()
     books = pd.read_csv(settings.books_path)
     interactions = pd.read_csv(settings.interactions_path)
-    model = train_recommender(books, interactions, settings.similarity_neighbors)
+    model = train_recommender(
+        books,
+        interactions,
+        similarity_neighbors=settings.training.similarity_neighbors,
+        content_weight=settings.training.content_weight,
+        collaborative_weight=settings.training.collaborative_weight,
+        popularity_weight=settings.training.popularity_weight,
+    )
     save_model(model, settings.model_path)
     logging.info("Saved model with %d books and %d users to %s",
                  len(model.item_ids), len(model.user_ids), settings.model_path)
