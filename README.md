@@ -22,6 +22,8 @@ python -m book_recommendation.train
 uvicorn book_recommendation.api:app --reload --app-dir src
 ```
 
+Use `python -m book_recommendation.train --dry-run` to load and validate the configured CSVs and report data/split statistics without fitting a model. Select a different YAML file with `--config config/your-env.yaml`; `--no-mlflow` skips optional tracking.
+
 ## Exploratory analysis
 
 The reproducible Book-Crossing EDA is in `notebooks/01_book_crossing_eda.ipynb`. Run it from the repository root after installing the project dependencies. It profiles data quality, implicit versus explicit ratings, user/book activity, catalog completeness, and interaction sparsity. The older `dump/expriments.ipynb` is an exploratory scratch notebook for Project Gutenberg metadata, not the EDA for the selected Book-Crossing dataset.
