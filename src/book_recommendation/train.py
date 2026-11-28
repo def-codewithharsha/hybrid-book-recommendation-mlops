@@ -1,16 +1,16 @@
 """CLI training entry point: python -m book_recommendation.train"""
-import logging
-
 import pandas as pd
 
 from book_recommendation.config import get_settings
+from book_recommendation.logger import configure_logging, get_logger
 from book_recommendation.model_artifact import save_model
 from book_recommendation.model_trainer import train_recommender
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
     settings = get_settings()
+    configure_logging(settings.logging.level, settings.logging.format)
+    logger = get_logger(__name__)
     books = pd.read_csv(settings.books_path)
     interactions = pd.read_csv(settings.interactions_path)
     model = train_recommender(
@@ -22,8 +22,8 @@ def main() -> None:
         popularity_weight=settings.training.popularity_weight,
     )
     save_model(model, settings.model_path)
-    logging.info("Saved model with %d books and %d users to %s",
-                 len(model.item_ids), len(model.user_ids), settings.model_path)
+    logger.info("Saved model with %d books and %d users to %s",
+                len(model.item_ids), len(model.user_ids), settings.model_path)
     try:
         import mlflow
 
@@ -33,7 +33,7 @@ def main() -> None:
                                "similarity_neighbors": settings.similarity_neighbors})
             mlflow.log_artifact(str(settings.model_path), artifact_path="model")
     except Exception as exc:
-        logging.warning("MLflow tracking unavailable; local artifact was saved: %s", exc)
+        logger.warning("MLflow tracking unavailable; local artifact was saved: %s", exc)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """FastAPI serving layer for the hybrid recommender."""
+import re
 from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
@@ -12,13 +13,13 @@ from book_recommendation.logger import configure_logging, get_logger
 from book_recommendation.model_artifact import load_model
 from book_recommendation.model_trainer import HybridRecommender
 
-configure_logging()
 logger = get_logger(__name__)
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(settings.logging.level, settings.logging.format)
     try:
         app.state.model = load_model(settings.model_path)
         logger.info("Model loaded from %s", settings.model_path)
@@ -39,12 +40,29 @@ class RecommendationRequest(BaseModel):
 
 @app.middleware("http")
 async def observe_requests(request: Request, call_next):
-    request_id = request.headers.get("x-request-id", str(uuid4()))
+    supplied_request_id = request.headers.get("x-request-id", "")
+    request_id = (
+        supplied_request_id
+        if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", supplied_request_id)
+        else str(uuid4())
+    )
     start = perf_counter()
-    response = await call_next(request)
+    context = {
+        "request_id": request_id,
+        "http_method": request.method,
+        "http_path": request.url.path,
+    }
+    try:
+        response = await call_next(request)
+    except Exception:
+        context["duration_ms"] = round((perf_counter() - start) * 1000, 2)
+        logger.exception("request failed", extra=context)
+        raise
+    context["status_code"] = response.status_code
+    context["duration_ms"] = round((perf_counter() - start) * 1000, 2)
     response.headers["x-request-id"] = request_id
-    logger.info("request complete", extra={"request_id": request_id})
-    response.headers["server-timing"] = f"app;dur={(perf_counter() - start) * 1000:.2f}"
+    logger.info("request complete", extra=context)
+    response.headers["server-timing"] = f"app;dur={context['duration_ms']:.2f}"
     return response
 
 
