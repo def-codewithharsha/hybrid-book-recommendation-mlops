@@ -45,6 +45,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def _log_mlflow(
     *,
     model_path: Path,
+    manifest_path: Path,
     params: dict[str, str | int | float],
     metrics: dict[str, float],
     experiment_name: str,
@@ -62,6 +63,7 @@ def _log_mlflow(
             if metrics:
                 mlflow.log_metrics(metrics)
             mlflow.log_artifact(str(model_path), artifact_path="model")
+            mlflow.log_artifact(str(manifest_path), artifact_path="model")
     except Exception:
         logger.exception("MLflow logging failed; the local model artifact remains available")
 
@@ -139,7 +141,7 @@ def run_training(*, dry_run: bool = False, track_mlflow: bool = True) -> None:
     else:
         logger.warning("Test split is empty; no final ranking metrics are available")
 
-    save_model(model, settings.model_path)
+    manifest_path = save_model(model, settings.model_path)
     logger.info(
         "Saved model candidate with %d books and %d explicit-training users to %s",
         len(model.item_ids),
@@ -159,6 +161,7 @@ def run_training(*, dry_run: bool = False, track_mlflow: bool = True) -> None:
         }
         _log_mlflow(
             model_path=settings.model_path,
+            manifest_path=manifest_path,
             params={
                 "artifact_version": model.artifact_version,
                 "random_seed": settings.random_seed,
